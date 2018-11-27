@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width,user-scalable=no"/>
+		<title></title>
+		<style>
+			html,
+			body{
+				height: 100%;
+				overflow: hidden;
+			}
+			body{
+				margin: 0;
+				/*background-color: #000;*/
+			}
+			#tip{
+				position: absolute;
+				left: 5px;
+				top: 5px;
+				color: #fff;
+				font: bold 20px/1 "微软雅黑";
+				margin: 0;
+				opacity: .7;
+			}
+			#c{
+				box-shadow: 0 0 10px #ccc;
+				background-color: #333;
+			}
+			#pannel{
+				display: none;
+				position: relative;
+			}
+			#c2{
+				position: absolute;
+				left: 0;
+				top: 0;
+				background-color: rgba( 100,200,100,.1 );
+				z-index: 999;
+			}
+			.img{
+				width: 10vw;
+			}
+			#pannel input{
+				margin-left: 20vw;
+				width: 75vw;
+			}
+		</style>
+		
+	</head>
+	<body>
+		<input type="file" id="f" />
+		<div id="pannel">
+			<canvas id="c"></canvas>
+			<canvas id="c2"></canvas>
+			<input type="range" id="gray" min="0" max="100" step="10" value="0" />
+			<input type="range" id="lightness" min="0" max="100" step="10" value="50" />
+			<input type="range" id="saturate" min="0" max="100" step="10" value="50" />
+			<pre id="tip">0</pre>
+		</div>
+		<script>
+			(function(){
+				var html = document.documentElement;
+				var htmlWidth = html.getBoundingClientRect().width;
+				html.style.fontSize = htmlWidth/16 +"px";
+			})()
+		</script>
+		<script>
+			var c = document.getElementById("c");
+			var c2 = document.getElementById("c2");
+			
+			var ctx = c.getContext("2d");
+			var ctx2 = c2.getContext("2d");
+			
+			var img;
+			var rectData;
+			var touchArea = 10;
+			var state = {
+				gray:0, //0-100
+				lightness:50, //0-100
+				saturate: 50, //0-100
+			};
+			var mode = "gray"; 
+			c2.setAttribute( "width",window.innerWidth );
+			c2.setAttribute( "height",window.innerHeight*0.8 );
+			
+			c.setAttribute( "width",window.innerWidth );
+			c.setAttribute( "height",window.innerHeight*0.8 );
+			ctx2.strokeStyle = "red";
+			ctx2.lineWidth = "3";
+			ctx2.setLineDash([10,10]);
+			var rectStatu = {
+				w:100,
+				h:100,
+				l:c2.width/2-50,
+				t:c2.height/2-50,
+			}
+			
+			whScale = c.width/c.height; // canvas 宽高比
+			
+//------------------------------------------
+//			f.onchange = function(){
+//				var fr = new FileReader();
+//				fr.readAsDataURL( f.files[0] );
+//				fr.onload = function(){
+//------------------------------------------
+					img = new Image();
+//					document.body.appendChild( img );
+					img.className = "img";
+//					img.src = fr.result;
+					img.src = "./3.jpg";
+					img.onload = function(){
+						var imgWHScale = img.width/img.height;//图片宽高比
+						
+						var imgX = 0,//图片位置
+							imgY = 0;
+//						计算图片大小
+						if( imgWHScale > whScale ){
+							//按照宽度 做适应
+							imgW = c.width; 
+							imgH = imgW/imgWHScale;
+							imgY = (c.height - imgH)/2;
+						}else{
+							//按照高度 做适应
+							imgH = c.height;
+							imgW = imgH*imgWHScale;
+							imgX = (c.width - imgW)/2;
+						}
+						f.style.display = "none";
+						pannel.style.display = "block";
+						ctx.drawImage( img,imgX,imgY,imgW,imgH);
+//						ctx.drawImage( img,0,0 );
+						rectData = ctx.getImageData(0, 0, c.width, c.height); 
+						oriData = Array.from(rectData.data);
+//						console.log( rectData.data );
+						
+						drawRect(rectStatu);
+						
+					}
+//------------------------------------------
+//				}
+//			}
+//------------------------------------------
+			function tl(...r){
+				tip.innerHTML = r.join(",") ;
+			}
+			
+			function drawRect(rect){
+				
+				var {l,t,w,h} = rect;
+				ctx2.clearRect( 0,0,c2.width,c2.height );
+				ctx2.strokeRect( l,t,w,h );
+			}
+			
+			function calcImg(){
+				grayPercent = state.gray/100;
+				lightnessPercent = state.lightness/100;
+				saturatePercent = state.saturate/100; // 饱和度
+			    for (i=0; i<rectData.height; i++) {
+			        for (j=0; j<rectData.width; j++) {
+			            var x = (i*4) * rectData.width + (j*4);
+			            var r1 = oriData[x]; 
+			            var g1 = oriData[x+1]; 
+			            var b1 = oriData[x+2];
+			            var avg = (r1+g1+b1)/3;
+//			            	处理灰度
+			            var r2 = r1 + (avg-r1)*grayPercent;
+			            var g2 = g1 + (avg-g1)*grayPercent;
+			            var b2 = b1 + (avg-b1)*grayPercent;
+//			            	处理灰度
+			           	var [h,s,l] = rgbToHsl(r2, g2, b2);
+//			           		饱和度
+//			           	console.log( s );
+						s += (saturatePercent-0.5)/4;
+						l += (lightnessPercent-0.5)/4;
+			           	var [r3,g3,b3] = hslToRgb(h, s, l);
+			            rectData.data[x] = r3;
+			            rectData.data[x+1] = g3;
+			            rectData.data[x+2] = b3;
+			        }
+			    }
+			    ctx.putImageData(rectData,0,0,0,0, rectData.width, rectData.height);
+			}
+			
+//			document.addEventListener("touchmove",()=>{
+//				event.preventDefault();
+//			})
+			
+			gray.addEventListener("input",function(){
+				tip.innerHTML = this.value;
+				state.gray = this.value;
+				calcImg();
+			}) 
+			
+			lightness.addEventListener("input",function(){
+				tip.innerHTML = this.value;
+				state.lightness = this.value;
+				calcImg();
+			})
+			
+			saturate.addEventListener("input",function(){
+				tip.innerHTML = this.value;
+				state.saturate = this.value;
+				calcImg();
+			})
+			
+			var flag = "";
+			var oriX,oriY;
+			var nowStatu={...rectStatu};
+			tl(JSON.stringify(rectStatu,null,"\t"))
+			c2.addEventListener("touchstart",function(){
+				({pageX:oriX,pageY:oriY} = event.changedTouches[0]);
+				var {l,t,w,h} = rectStatu;
+				flag = "";
+				if( Math.abs( oriX - (l+w) ) < touchArea ){
+					console.log( "右侧" );
+					flag += "r";
+				}else if( Math.abs( oriX - l ) < touchArea ){
+					console.log( "左侧" );
+					flag += "l";
+				}
+				
+				if( Math.abs( oriY - (t+h) ) < touchArea ){
+					console.log( "底部" );
+					flag += "b";
+				}else if( Math.abs( oriY - t ) < touchArea ){
+					console.log( "顶部" );
+					flag += "t";
+				}
+				if( oriX>l+touchArea 
+					&& oriX<l+w-touchArea 
+					&& oriY>t+touchArea
+					&& oriY<t+h-touchArea ){
+					flag = "m";
+				}
+				
+			})
+			c2.addEventListener("touchmove",function(){
+				nowStatu = {...rectStatu};
+				var {pageX:nowX,pageY:nowY} = event.changedTouches[0];
+				if( flag.indexOf( "r" ) !== -1 ){//有右边操作
+					nowStatu.w += nowX - oriX; 
+					nowStatu.w = Math.max( nowStatu.w,20 );
+				}
+				if( flag.indexOf( "b" ) !== -1 ){//有底边操作
+					nowStatu.h += nowY - oriY;
+					nowStatu.h = Math.max( nowStatu.h,20 );
+				}
+				if( flag.indexOf( "l" ) !== -1 ){//有左侧操作
+					nowStatu.w -= nowX - oriX;
+					nowStatu.w = Math.max( nowStatu.w,20 );
+					nowStatu.l += nowX - oriX;
+					nowStatu.l = Math.min( nowStatu.l,rectStatu.l+rectStatu.w-20 );
+				}
+				if( flag.indexOf( "t" ) !== -1 ){//有顶边操作
+					nowStatu.h -= nowY - oriY;
+					nowStatu.h = Math.max( nowStatu.h,20 );
+					nowStatu.t += nowY - oriY;
+					nowStatu.t = Math.min( nowStatu.t,rectStatu.t+rectStatu.h-20 );
+				}
+				if( flag==="m" ){//移动操作
+					nowStatu.l += nowX - oriX;
+					nowStatu.t += nowY - oriY;
+				}
+				tl(JSON.stringify(nowStatu,null,"\t"))
+				drawRect(nowStatu);
+				event.preventDefault();
+			})
+			c2.addEventListener("touchend",function(){
+				rectStatu = {...nowStatu};
+			})
+
+			function rgbToHsl(r, g, b) {
+			    r /= 255, g /= 255, b /= 255;
+			    var max = Math.max(r, g, b), min = Math.min(r, g, b);
+			    var h, s, l = (max + min) / 2;
+			
+			    if (max == min){ 
+			        h = s = 0; // achromatic
+			    } else {
+			        var d = max - min;
+			        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+			        switch(max) {
+			            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+			            case g: h = (b - r) / d + 2; break;
+			            case b: h = (r - g) / d + 4; break;
+			        }
+			        h /= 6;
+			    }
+			
+			    return [h, s, l];
+			}
+			
+			function hslToRgb(h, s, l) {
+		    var r, g, b;
+		    if(s == 0) {
+		        r = g = b = l; // achromatic
+		    } else {
+		        var hue2rgb = function hue2rgb(p, q, t) {
+		            if(t < 0) t += 1;
+		            if(t > 1) t -= 1;
+		            if(t < 1/6) return p + (q - p) * 6 * t;
+		            if(t < 1/2) return q;
+		            if(t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+		            return p;
+		        }
+		        var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+		        var p = 2 * l - q;
+		        r = hue2rgb(p, q, h + 1/3);
+		        g = hue2rgb(p, q, h);
+		        b = hue2rgb(p, q, h - 1/3);
+		    }
+		    return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+		}
+			
+		</script>
+	</body>
+</html>
